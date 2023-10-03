@@ -4,8 +4,11 @@
 
 #include <random>
 #include <string>
+#include <array>
 
-
+/*Next Objective:
+Make score board
+*/
 using namespace Webfoot;
 
 MainGame MainGame::instance;
@@ -23,6 +26,8 @@ MainGame::MainGame()
    paddle1 = NULL;
    paddle2 = NULL;
    paddles[2] = NULL;
+   player1 = NULL;
+   player2 = NULL;
 }
 
 //-----------------------------------------------------------------------------
@@ -30,15 +35,34 @@ MainGame::MainGame()
 void MainGame::Init()
 {
    Inherited::Init();
-
+   /*
+   std::map<KeyCode, int[2]> inputs2 = {
+   { KEY_RIGHT, { 1, 0 } },
+   { KEY_LEFT, { -1, 0 } },
+   { KEY_UP, { 0, -1 } },
+   { KEY_DOWN, { 0, 1 } },
+   };
+   /*/
    // Create and initialize the ball.
-   ball  = frog_new Ball();
+   std::map<KeyCode, std::array<int, 2>> inputs = {
+	   { KEY_RIGHT, { { 1, 0 } } },
+	   { KEY_LEFT, { { -1, 0 } } },
+	   { KEY_UP, { { 0, -1 } } },
+	   { KEY_DOWN, { { 0, 1 } } }
+   };
+   ball = frog_new Ball();
    ball->Init("ball2", NULL, NULL, 1, -1, 8);
    paddle1 = frog_new Paddle();
-   paddle1->Init("paddle", 50, NULL, 1, 0, 8);
+   paddle1->Init("paddle", 50, NULL, 0, 0, 8);
    paddle2 = frog_new Paddle();
-   paddle2->Init("paddle", 500, NULL, -1, 0, 8);
+   paddle2->Init("paddle", 1000, NULL, 0, 0, 8);
    Paddle* paddles[2] = {paddle1, paddle2};
+
+   player1 = frog_new PC();
+   player1->Init(paddle1, inputs); 
+   player2 = frog_new COM();
+   player2->Init(paddle2, ball);
+
 }
 
 //-----------------------------------------------------------------------------
@@ -52,9 +76,11 @@ void MainGame::Deinit()
 			frog_delete prop;
 			prop = NULL;
 		}
-		
 	}
-   Inherited::Deinit();
+	frog_delete player1;
+	player1 = NULL;
+	frog_delete player2;
+	player2 = NULL;
 }
 
 //-----------------------------------------------------------------------------
@@ -75,8 +101,8 @@ void MainGame::Update()
    Paddle* paddles[2] = { paddle1, paddle2};
 
    ball->Update(dt, paddles);
-   paddle1->Update(dt);
-   paddle2->Update(dt);
+   player1->Update(dt);
+   player2->Update(dt);
 
    // Return to the previous menu if the escape key is pressed.
    if(!theStates->StateChangeCheck() && theKeyboard->KeyJustPressed(KEY_ESCAPE))
@@ -152,8 +178,8 @@ void Prop::Update(unsigned int dt)
 	//need mouse object
 	//need window object
 	//random values
-	Move(step * velocity.x, step * velocity.y);
-	Bounce();
+	//Move(step * velocity.x, step * velocity.y);
+	//Bounce();
 	
 }
 void Prop::Move(float x, float y){
@@ -176,23 +202,7 @@ void Prop::Teleport(float x, float y){
 	br = Point2F::Create(x + w, y + h);
 	tl = Point2F::Create(x - w, y - h);
 }
-void Prop::Bounce(){
-	float x = position.x;
-	float y = position.y;
-	if (x >= SCREEN_WIDTH_DEFAULT) {
-		velocity.x = -1;
-	}
-	else if (x <= 0) {
-		velocity.x = 1;
-	}
-	if (y >= SCREEN_HEIGHT_DEFAULT) {
-		velocity.y = -1;
-	}
-	else if (y <= 0) {
-		velocity.y = 1;
-	}
-}
-
+BOOLEAN Prop::OutBounds() { return false; }
 //------------------------------------------------------------------------------
 
 void Prop::Draw()
@@ -238,8 +248,23 @@ void Ball::Update(unsigned int dt, Paddle *paddles[2])
 	}
 	Move(x, y);
 	Bounce();
-}
- ;
+};
+void Ball::Bounce(){
+	float x = position.x;
+	float y = position.y;
+	if (x >= SCREEN_WIDTH_DEFAULT) {
+		velocity.x = -1;
+	}
+	else if (x <= 0) {
+		velocity.x = 1;
+	}
+	if (y >= SCREEN_HEIGHT_DEFAULT) {
+		velocity.y = -1;
+	}
+	else if (y <= 0) {
+		velocity.y = 1;
+	}
+};
 //hit paddle
 boolean Ball::HitPaddle(Paddle* paddle)
 {
@@ -267,5 +292,74 @@ Paddle::Paddle()
 {
 	image = NULL;
 }
-
+boolean Paddle::OutBounds()
+{
+	return (
+		br.x >= SCREEN_WIDTH_DEFAULT ||
+		tl.x <= 0 ||
+		br.y >= SCREEN_HEIGHT_DEFAULT ||
+		tl.y <= 0
+		);
+}
 //------------------------------------------------------------------------------
+Controls::Controls() {};
+PC::PC() {};
+void PC::Init(Prop* actor, std::map<KeyCode, std::array<int, 2>> inputs)
+{
+	this->actor = actor;
+	this->inputs = inputs;
+
+}
+void PC::Update(unsigned int dt)
+{
+	float x, y, step;
+	step = actor->step;
+	for (const auto &p : inputs)
+	{
+		p.first; //key
+		p.second;//value
+		if (theKeyboard->KeyPressed(p.first)){
+			x = p.second[0] * step;
+			y = p.second[1] * step;
+			actor->Move(x, y);
+			if (actor->OutBounds()){ actor->Move(-x, -y); }
+		}
+	}
+
+}
+COM::COM() {};
+void COM::Init(Prop* actor, Ball* ball)
+{
+	this->actor = actor;
+	this->ball = ball;
+
+}
+void COM::Update(unsigned int dt)
+{
+	float y, step;
+	y = ball->position.y;
+	step = actor->step;
+	if (y > actor->position.y) {
+		y = 1;
+	}
+	else if (y < actor->position.y){
+		y = -1;
+	}
+	else {
+		y = 0;
+	}
+	y = step * y;
+	//Chance of taking random move
+	std::random_device seed;
+	std::mt19937 gen{ seed() }; // seed the generator
+	std::uniform_int_distribution<> dist(1, 100);
+	if (dist(gen) < 50) {//0 means will always chose right decision for testing purposes
+		std::uniform_int_distribution<> dist2{ -1, 1 };
+		actor->Move(0, dist2(gen));
+	}
+	else {
+		actor->Move(0, y);
+	}
+	if (actor->OutBounds()){ actor->Move(0, -y); }
+	
+}

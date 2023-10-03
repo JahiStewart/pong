@@ -6,12 +6,18 @@
 
 //#include <string>
 #include <vector>
+#include <map>
+#include <array>
 
 namespace Webfoot {
 
 class Prop;
 class Ball;
 class Paddle;
+//
+class Controls;
+class PC;
+class COM;
 //==============================================================================
 
 class MainGame : public MenuState
@@ -40,7 +46,10 @@ protected:
    Paddle* paddle1;
    Paddle* paddle2;
    Ball* ball;
-   Paddle* paddles[2];
+   Paddle* paddles[2];//Curently doesn't work(values would become null in main update)
+
+   PC* player1;
+   COM* player2;
 };
 
 MainGame* const theMainGame = &MainGame::instance;
@@ -60,16 +69,16 @@ public:
 	virtual void Update(unsigned int dt);
 	/// Draw the prop.
 	void Draw();
-	/// Bounce the ball
-	void Bounce();
-	/// Get bounds
+	
 	//For collision
 	void Move(float x, float y);
 	void Teleport(float x, float y);
 	//
+	virtual BOOLEAN OutBounds();
 	Point2F position;
 	Point2F br;
 	Point2F tl;
+	float step;
 protected:
 	/// Appearance of the prop.
 	Image* image;
@@ -78,13 +87,15 @@ protected:
 	Point2F velocity;
 	//Hitbox
 	Point2F size;
-	float step;
+	
 
 };
 /// A bouncing ball
 class Ball: public Prop{
 public:
 	Ball();
+	/// Bounce the ball
+	void Bounce();
 	void Update(unsigned int dt, Paddle *paddles[2]);
 	boolean HitPaddle(Paddle* paddle);
 	//hit paddle
@@ -95,12 +106,36 @@ public:
 class Paddle: public Prop{
 public:
 	Paddle();
+	BOOLEAN OutBounds();
 protected:
 	int score;
 };
-
 //==============================================================================
-
+class Controls{
+public:
+	Controls();
+	virtual void Init() {};
+	virtual void Update(unsigned int dt) = 0;
+protected:
+	Prop* actor;
+};
+class PC: public Controls{
+public:
+	PC();
+	void Init(Prop* actor, std::map<KeyCode, std::array<int, 2>> inputs);
+	void Update(unsigned int dt);
+protected:
+	std::map<KeyCode, std::array<int, 2>> inputs;
+};
+class COM: public Controls{
+public:
+	COM();
+	void Init(Prop* actor, Ball* ball);
+	void Update(unsigned int dt);
+protected:
+	Ball* ball;
+};
+//==============================================================================
 } //namespace Webfoot {
 
 #endif //#ifndef __MAINGAME_H__
