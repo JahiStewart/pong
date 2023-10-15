@@ -5,9 +5,11 @@
 #include <random>
 #include <string>
 #include <array>
+#include <cstdio>
 
 /*Next Objective:
 Make score board
+Fix step collision to avoid "over stepping"
 */
 using namespace Webfoot;
 
@@ -19,7 +21,7 @@ MainGame MainGame::instance;
 #define GUI_LAYER_NAME "MainGame"
 
 //-----------------------------------------------------------------------------
-
+Scoreboard* scoreboard;
 MainGame::MainGame()
 {
    ball = NULL;
@@ -28,6 +30,7 @@ MainGame::MainGame()
    paddles[2] = NULL;
    player1 = NULL;
    player2 = NULL;
+   scoreboard = NULL;
 }
 
 //-----------------------------------------------------------------------------
@@ -60,9 +63,12 @@ void MainGame::Init()
 
    player1 = frog_new PC();
    player1->Init(paddle1, inputs); 
+
    player2 = frog_new COM();
    player2->Init(paddle2, ball);
 
+   scoreboard = frog_new Scoreboard();
+   scoreboard->Init(paddle1, paddle2);
 }
 
 //-----------------------------------------------------------------------------
@@ -81,6 +87,8 @@ void MainGame::Deinit()
 	player1 = NULL;
 	frog_delete player2;
 	player2 = NULL;
+	frog_delete scoreboard;
+	scoreboard = NULL;
 }
 
 //-----------------------------------------------------------------------------
@@ -119,6 +127,8 @@ void MainGame::Draw()
    ball->Draw();
    paddle1->Draw();
    paddle2->Draw();
+   scoreboard->score1->Draw();
+   scoreboard->score2->Draw();
 }
 
 //==============================================================================
@@ -241,29 +251,15 @@ void Ball::Update(unsigned int dt, Paddle *paddles[2])
 	if (x_state) {
 		x *= -1;
 		velocity.x *= -1;
+		step = 8;
 	}
 	if (y_state) {
 		y *= -1;
 		velocity.y *= -1;
+		step = 8;
 	}
 	Move(x, y);
-	Bounce();
-};
-void Ball::Bounce(){
-	float x = position.x;
-	float y = position.y;
-	if (x >= SCREEN_WIDTH_DEFAULT) {
-		velocity.x = -1;
-	}
-	else if (x <= 0) {
-		velocity.x = 1;
-	}
-	if (y >= SCREEN_HEIGHT_DEFAULT) {
-		velocity.y = -1;
-	}
-	else if (y <= 0) {
-		velocity.y = 1;
-	}
+	Bounce(paddles);
 };
 //hit paddle
 boolean Ball::HitPaddle(Paddle* paddle)
@@ -287,10 +283,33 @@ boolean Ball::IsCollision(Paddle *paddles[2])
 	}
 	return false;
 }
+void Ball::Bounce(Paddle *paddles[2]){
+	if (br.y >= SCREEN_HEIGHT_DEFAULT) {
+		velocity.y = -1;
+	}
+	else if (tl.y <= 0) {
+		velocity.y = 1;
+	}
+	if (br.x >= SCREEN_WIDTH_DEFAULT || tl.x <= 0){
+		if (br.x >= SCREEN_WIDTH_DEFAULT) {
+			velocity.x = -1;
+			paddles[1]->score++;
+		}
+		else if (tl.x <= 0) {
+			velocity.x = 1;
+			paddles[0]->score++;
+		}
+		scoreboard->Update();
+		Teleport(SCREEN_WIDTH_DEFAULT / 2, SCREEN_HEIGHT_DEFAULT / 2);
+		step = 2;
+	}
+
+};
 //------------------------------------------------------------------------------
 Paddle::Paddle()
 {
 	image = NULL;
+	score = 0;
 }
 boolean Paddle::OutBounds()
 {
@@ -332,6 +351,7 @@ void COM::Init(Prop* actor, Ball* ball)
 {
 	this->actor = actor;
 	this->ball = ball;
+	this->prev = 0;
 
 }
 void COM::Update(unsigned int dt)
@@ -348,18 +368,47 @@ void COM::Update(unsigned int dt)
 	else {
 		y = 0;
 	}
+	this->prev = y;
 	y = step * y;
 	//Chance of taking random move
 	std::random_device seed;
 	std::mt19937 gen{ seed() }; // seed the generator
 	std::uniform_int_distribution<> dist(1, 100);
-	if (dist(gen) < 50) {//0 means will always chose right decision for testing purposes
-		std::uniform_int_distribution<> dist2{ -1, 1 };
-		actor->Move(0, dist2(gen));
+	if (dist(gen) < 25) {//0 means will always chose right decision for testing purposes
+		actor->Move(0, prev);
 	}
 	else {
 		actor->Move(0, y);
 	}
 	if (actor->OutBounds()){ actor->Move(0, -y); }
 	
+	
+}
+//------------------------------------------------------------------------------
+Scoreboard::Scoreboard(){}
+void Scoreboard::Init(Paddle* paddle1, Paddle* paddle2)
+{
+	this->paddle1 = paddle1;
+	this->paddle2 = paddle2;
+
+	score1 = frog_new Prop(); 
+	score1->Init("numbers/00", SCREEN_WIDTH_DEFAULT / 2 - 50, 50, 0, 0, 0);
+	score2 = frog_new Prop();
+	score2->Init("numbers/00", SCREEN_WIDTH_DEFAULT / 2 + 50, 50, 0, 0, 0);
+}
+void Scoreboard::Update(){
+	if (paddle1->score > 9 || paddle2->score > 9) {
+		paddle1->score = 0;
+		paddle2->score = 0;
+	}
+	UpdateScore(score1, paddle1, 1);
+	UpdateScore(score2, paddle2, -1);
+}
+void Scoreboard::UpdateScore(Prop* &score, Paddle* paddle, int side){
+	score->Teleport(-100, -100);//Into the backrooms
+	score = frog_new Prop();
+	std::string str = "numbers/0" + std::to_string(paddle->score);
+	const char* char_ptr = str.c_str();
+	score->Init(char_ptr, SCREEN_WIDTH_DEFAULT / 2 + 50 * side, 50, 0, 0, 0);
+	score->Draw();
 }

@@ -4,6 +4,7 @@
 #include "Frog.h"
 #include "MenuState.h"
 
+
 //#include <string>
 #include <vector>
 #include <map>
@@ -18,8 +19,11 @@ class Paddle;
 class Controls;
 class PC;
 class COM;
+//
+class Scoreboard;
 //==============================================================================
 
+//extern Scoreboard* scoreboard;
 class MainGame : public MenuState
 {
 public:
@@ -79,9 +83,9 @@ public:
 	Point2F br;
 	Point2F tl;
 	float step;
-protected:
 	/// Appearance of the prop.
 	Image* image;
+protected:
 	/// Current position of the prop.
 	//Current velocity
 	Point2F velocity;
@@ -95,7 +99,7 @@ class Ball: public Prop{
 public:
 	Ball();
 	/// Bounce the ball
-	void Bounce();
+	void Bounce(Paddle *paddles[2]);
 	void Update(unsigned int dt, Paddle *paddles[2]);
 	boolean HitPaddle(Paddle* paddle);
 	//hit paddle
@@ -107,8 +111,9 @@ class Paddle: public Prop{
 public:
 	Paddle();
 	BOOLEAN OutBounds();
-protected:
 	int score;
+protected:
+
 };
 //==============================================================================
 class Controls{
@@ -134,8 +139,22 @@ public:
 	void Update(unsigned int dt);
 protected:
 	Ball* ball;
+	float prev;
 };
 //==============================================================================
-} //namespace Webfoot {
+class Scoreboard{
+public:
+	Scoreboard();
+	void Init(Paddle* paddle1, Paddle* paddle2);
+	void Update();
+	void UpdateScore(Prop* &score, Paddle* paddle, int side);
+	Paddle* paddle1;
+	Paddle* paddle2;
+	Prop *score1;
+	Prop *score2;
 
+};
+//==============================================================================
+ //namespace Webfoot {
+};
 #endif //#ifndef __MAINGAME_H__
